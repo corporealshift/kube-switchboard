@@ -1,34 +1,30 @@
 use eframe::egui;
 use eframe::CreationContext;
-use std::process::Command;
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Duration;
+
+use k8s_openapi::api::core::v1::Namespace;
+use kube::{
+    api::{Api, ListParams},
+    Client,
+};
 
 use tokio::runtime::Runtime;
 
 fn get_namespaces(tx: Sender<Vec<String>>, ctx: egui::Context) {
     tokio::spawn(async move {
-        let raw_namespaces = Command::new("kubectl")
-            .args([
-                "get",
-                "ns",
-                "--sort-by=.metadata.creationTimestamp",
-                "-o",
-                "jsonpath='{.items[*].metadata.name}'",
-            ])
-            .output()
-            .expect("Failed to get namespaces");
+        let client = Client::try_default().await.expect("Failed to get client");
 
-        let ns_string = String::from_utf8(raw_namespaces.stdout)
-            .expect("Could not parse namespaces")
-            .to_string();
-        println!("Res: {:?}", ns_string);
-        let namespaces = ns_string
-            .split_whitespace()
-            .into_iter()
-            .map(|ns| ns.to_owned())
-            .collect::<Vec<_>>();
-        let _ = tx.send(namespaces);
+        let namespaces: Api<Namespace> = Api::all(client);
+        let all = match namespaces.list(&ListParams::default()).await {
+            Ok(list) => list
+                .iter()
+                .map(|ns| ns.metadata.name.clone().unwrap_or("".to_owned()))
+                .collect::<Vec<String>>(),
+            _ => vec!["Failed to get namespaces".to_owned()],
+        };
+
+        let _ = tx.send(all);
         ctx.request_repaint();
     });
 }
