@@ -1,6 +1,37 @@
 use eframe::egui;
 use eframe::CreationContext;
 use std::process::Command;
+use std::sync::mpsc::{Receiver, Sender};
+use std::time::Duration;
+
+use tokio::runtime::Runtime;
+
+fn get_namespaces(tx: Sender<Vec<String>>, ctx: egui::Context) {
+    tokio::spawn(async move {
+        let raw_namespaces = Command::new("kubectl")
+            .args([
+                "get",
+                "ns",
+                "--sort-by=.metadata.creationTimestamp",
+                "-o",
+                "jsonpath='{.items[*].metadata.name}'",
+            ])
+            .output()
+            .expect("Failed to get namespaces");
+
+        let ns_string = String::from_utf8(raw_namespaces.stdout)
+            .expect("Could not parse namespaces")
+            .to_string();
+        println!("Res: {:?}", ns_string);
+        let namespaces = ns_string
+            .split_whitespace()
+            .into_iter()
+            .map(|ns| ns.to_owned())
+            .collect::<Vec<_>>();
+        let _ = tx.send(namespaces);
+        ctx.request_repaint();
+    });
+}
 
 fn main() -> Result<(), eframe::Error> {
     env_logger::init();
@@ -9,44 +40,44 @@ fn main() -> Result<(), eframe::Error> {
         ..Default::default()
     };
 
-    //    let raw_namespaces = Command::new("kubectl get ns --sort-by=-.metadata.creationTimestamp -o jsonpath='{.items[*].metadata.name}'")
-    let raw_namespaces = Command::new("kubectl")
-        .args([
-            "get",
-            "ns",
-            "--sort-by=.metadata.creationTimestamp",
-            "-o",
-            "jsonpath='{.items[*].metadata.name}'",
-        ])
-        .output()
-        .expect("Failed to get namespaces");
-
-    let ns_string = String::from_utf8(raw_namespaces.stdout)
-        .expect("Could not parse namespaces")
-        .to_string();
-    println!("Res: {:?}", ns_string);
-    let namespaces = ns_string
-        .split_whitespace()
-        .into_iter()
-        .map(|ns| ns.to_owned())
-        .collect::<Vec<_>>();
+    let rt = Runtime::new().expect("Unable to create tokio runtime");
+    let _enter = rt.enter();
+    // Keep the runtime alive
+    std::thread::spawn(move || {
+        rt.block_on(async {
+            loop {
+                tokio::time::sleep(Duration::from_secs(3600)).await;
+            }
+        })
+    });
 
     eframe::run_native(
         "Dev Switchboard",
         options,
-        Box::new(|cc| Box::new(DevSwitchboard::new(cc, namespaces))),
+        Box::new(|cc| {
+            Box::new(DevSwitchboard::new(
+                cc,
+                vec!["Loading namespaces...".to_owned()],
+            ))
+        }),
     )
 }
 
 struct DevSwitchboard {
+    sender: Sender<Vec<String>>,
+    receiver: Receiver<Vec<String>>,
     selected_namespace: String,
     namespaces: Vec<String>,
 }
 
 impl DevSwitchboard {
-    fn new(_cc: &CreationContext<'_>, namespaces: Vec<String>) -> Self {
+    fn new(cc: &CreationContext<'_>, namespaces: Vec<String>) -> Self {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        get_namespaces(sender.clone(), cc.egui_ctx.clone());
         Self {
-            selected_namespace: "".to_owned(),
+            sender,
+            receiver,
+            selected_namespace: "Loading namespaces...".to_owned(),
             namespaces,
         }
     }
@@ -54,6 +85,10 @@ impl DevSwitchboard {
 
 impl eframe::App for DevSwitchboard {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if let Ok(namespaces) = self.receiver.try_recv() {
+            self.namespaces = namespaces;
+            self.selected_namespace = "".to_owned();
+        }
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Fulcrum Dev Switchboard");
             ui.horizontal(|ui| {
