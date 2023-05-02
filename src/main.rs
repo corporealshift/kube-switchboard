@@ -11,25 +11,11 @@ use kube::{
 
 use tokio::runtime::Runtime;
 
-enum MessageType {
-    Namespaces,
+enum KubeMessage {
+    Namespaces(Result<Vec<String>, Error>),
 }
 
-struct KubeResponse {
-    name: MessageType,
-    result: Result<Vec<String>, Error>,
-}
-
-impl KubeResponse {
-    fn namespaces(res: Result<Vec<String>, Error>) -> KubeResponse {
-        KubeResponse {
-            name: MessageType::Namespaces,
-            result: res,
-        }
-    }
-}
-
-fn get_namespaces(tx: Sender<KubeResponse>, ctx: egui::Context) {
+fn get_namespaces(tx: Sender<KubeMessage>, ctx: egui::Context) {
     tokio::spawn(async move {
         let client = Client::try_default().await.expect("Failed to get client");
 
@@ -40,7 +26,7 @@ fn get_namespaces(tx: Sender<KubeResponse>, ctx: egui::Context) {
                 .collect::<Vec<String>>()
         });
 
-        let _ = tx.send(KubeResponse::namespaces(all));
+        let _ = tx.send(KubeMessage::Namespaces(all));
         ctx.request_repaint();
     });
 }
@@ -76,8 +62,8 @@ fn main() -> Result<(), eframe::Error> {
 }
 
 struct DevSwitchboard {
-    sender: Sender<KubeResponse>,
-    receiver: Receiver<KubeResponse>,
+    sender: Sender<KubeMessage>,
+    receiver: Receiver<KubeMessage>,
     selected_namespace: String,
     namespaces: Vec<String>,
 }
@@ -97,14 +83,17 @@ impl DevSwitchboard {
 
 impl eframe::App for DevSwitchboard {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if let Ok(ns_res) = self.receiver.try_recv() {
-            match ns_res.result {
-                Ok(namespaces) => {
-                    self.namespaces = namespaces;
-                    self.selected_namespace = "".to_owned();
-                }
-                _ => self.selected_namespace = "Failed to load namespaces".to_owned(),
-            };
+        match self.receiver.try_recv() {
+            Ok(message) => match message {
+                KubeMessage::Namespaces(res) => match res {
+                    Ok(namespaces) => {
+                        self.namespaces = namespaces;
+                        self.selected_namespace = "".to_owned();
+                    }
+                    _ => self.selected_namespace = "Failed to load namespaces".to_owned(),
+                },
+            },
+            _ => {} // don't care if message does not receive
         }
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.heading("Fulcrum Dev Switchboard");
