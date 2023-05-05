@@ -15,18 +15,31 @@ enum KubeMessage {
     Namespaces(Result<Vec<String>, Error>),
 }
 
+#[derive(PartialEq)]
+enum Board {
+    Welcome,
+    Skaffold,
+}
+
 fn get_namespaces(tx: Sender<KubeMessage>, ctx: egui::Context) {
     tokio::spawn(async move {
-        let client = Client::try_default().await.expect("Failed to get client");
+        let client = Client::try_default().await;
 
-        let namespaces: Api<Namespace> = Api::all(client);
-        let all = namespaces.list(&ListParams::default()).await.map(|list| {
-            list.iter()
-                .map(|ns| ns.metadata.name.clone().unwrap_or("".to_owned()))
-                .collect::<Vec<String>>()
-        });
+        match client {
+            Ok(client) => {
+                let namespaces: Api<Namespace> = Api::all(client);
+                let all = namespaces.list(&ListParams::default()).await.map(|list| {
+                    list.iter()
+                        .map(|ns| ns.metadata.name.clone().unwrap_or("".to_owned()))
+                        .collect::<Vec<String>>()
+                });
 
-        let _ = tx.send(KubeMessage::Namespaces(all));
+                let _ = tx.send(KubeMessage::Namespaces(all));
+            }
+            Err(err) => {
+                tx.send(KubeMessage::Namespaces(Err(err)));
+            }
+        }
         ctx.request_repaint();
     });
 }
@@ -66,6 +79,7 @@ struct DevSwitchboard {
     receiver: Receiver<KubeMessage>,
     selected_namespace: String,
     namespaces: Vec<String>,
+    board: Board,
 }
 
 impl DevSwitchboard {
@@ -77,6 +91,7 @@ impl DevSwitchboard {
             receiver,
             selected_namespace: "Loading namespaces...".to_owned(),
             namespaces,
+            board: Board::Welcome,
         }
     }
 }
@@ -90,12 +105,12 @@ impl eframe::App for DevSwitchboard {
                         self.namespaces = namespaces;
                         self.selected_namespace = "".to_owned();
                     }
-                    _ => self.selected_namespace = "Failed to load namespaces".to_owned(),
+                    _ => self.selected_namespace = "Failed - Check login!".to_owned(),
                 },
             },
             _ => {} // don't care if message does not receive
         }
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::TopBottomPanel::top("header").show(ctx, |ui| {
             ui.heading("Fulcrum Dev Switchboard");
             ui.horizontal(|ui| {
                 let ns_label = ui.label("Namespace: ");
@@ -113,7 +128,23 @@ impl eframe::App for DevSwitchboard {
                             ui.selectable_value(&mut self.selected_namespace, ns, ns_label);
                         }
                     })
+            });
+            ui.horizontal(|ui| {
+                ui.label("Select a board:");
+                ui.selectable_value(&mut self.board, Board::Welcome, "Dashboard");
+                ui.selectable_value(&mut self.board, Board::Skaffold, "Skaffold");
             })
+        });
+        egui::CentralPanel::default().show(ctx, |ui| match self.board {
+            Board::Welcome => {
+                ui.label("Welcome to the Dev switchboard! Pick a board from the buttons above");
+            }
+            Board::Skaffold => {
+                ui.heading("Skaffold helper tools");
+                if ui.button("Check Status").clicked() {
+                    ui.label("Someday this will do a thing");
+                }
+            }
         });
     }
 }
