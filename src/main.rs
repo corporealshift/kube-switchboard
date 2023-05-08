@@ -1,5 +1,7 @@
 use eframe::egui;
+use eframe::egui::Color32;
 use eframe::CreationContext;
+use std::fmt;
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Duration;
 
@@ -13,12 +15,49 @@ use tokio::runtime::Runtime;
 
 enum KubeMessage {
     Namespaces(Result<Vec<String>, Error>),
+    Resource(Result<KubeResource, Error>),
 }
 
 #[derive(PartialEq)]
 enum Board {
     Welcome,
     Skaffold,
+}
+
+#[derive(PartialEq, Clone)]
+enum KubeStatus {
+    Loading,
+    Good,
+    Bad(String),
+    Suspicious(String),
+}
+
+impl fmt::Display for KubeStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            KubeStatus::Loading => write!(f, "Loading..."),
+            KubeStatus::Good => write!(f, "All good here"),
+            KubeStatus::Bad(msg) => write!(f, "Error: {}", msg),
+            KubeStatus::Suspicious(msg) => write!(f, "May have a problem: {}", msg),
+        }
+    }
+}
+
+#[derive(PartialEq, Clone)]
+enum KubeResource {
+    Service(KubeStatus),
+    Deployment(KubeStatus),
+    Pod(KubeStatus),
+}
+
+impl fmt::Display for KubeResource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            KubeResource::Service(status) => write!(f, "Service: {}", status),
+            KubeResource::Deployment(status) => write!(f, "Deploy: {}", status),
+            KubeResource::Pod(status) => write!(f, "Pods: {}", status),
+        }
+    }
 }
 
 fn get_namespaces(tx: Sender<KubeMessage>, ctx: egui::Context) {
@@ -43,6 +82,8 @@ fn get_namespaces(tx: Sender<KubeMessage>, ctx: egui::Context) {
         ctx.request_repaint();
     });
 }
+
+fn check_status(tx: Sender<KubeMessage>, ctx: egui::Context) {}
 
 fn main() -> Result<(), eframe::Error> {
     env_logger::init();
@@ -79,7 +120,9 @@ struct DevSwitchboard {
     receiver: Receiver<KubeMessage>,
     selected_namespace: String,
     namespaces: Vec<String>,
+    resources: Vec<KubeResource>,
     board: Board,
+    ready: bool,
 }
 
 impl DevSwitchboard {
@@ -91,7 +134,9 @@ impl DevSwitchboard {
             receiver,
             selected_namespace: "Loading namespaces...".to_owned(),
             namespaces,
+            resources: vec![],
             board: Board::Welcome,
+            ready: false,
         }
     }
 }
@@ -104,8 +149,25 @@ impl eframe::App for DevSwitchboard {
                     Ok(namespaces) => {
                         self.namespaces = namespaces;
                         self.selected_namespace = "".to_owned();
+                        self.ready = true;
                     }
                     _ => self.selected_namespace = "Failed - Check login!".to_owned(),
+                },
+                KubeMessage::Resource(res) => match res {
+                    Ok(new_resource) => {
+                        self.resources = self
+                            .resources
+                            .iter()
+                            .filter(|r| match (r, &new_resource) {
+                                (KubeResource::Service(_), KubeResource::Service(_)) => true,
+                                (KubeResource::Pod(_), KubeResource::Pod(_)) => true,
+                                (KubeResource::Deployment(_), KubeResource::Deployment(_)) => true,
+                                _ => false,
+                            })
+                            .map(|_| new_resource.clone())
+                            .collect();
+                    }
+                    _ => {}
                 },
             },
             _ => {} // don't care if message does not receive
@@ -141,8 +203,15 @@ impl eframe::App for DevSwitchboard {
             }
             Board::Skaffold => {
                 ui.heading("Skaffold helper tools");
-                if ui.button("Check Status").clicked() {
-                    ui.label("Someday this will do a thing");
+                if self.ready && ui.button("Check Status").clicked() {
+                    self.resources = vec![
+                        KubeResource::Service(KubeStatus::Loading),
+                        KubeResource::Deployment(KubeStatus::Loading),
+                        KubeResource::Pod(KubeStatus::Loading),
+                    ];
+                }
+                for resource in self.resources.clone() {
+                    ui.label(format!("{}", resource));
                 }
             }
         });
