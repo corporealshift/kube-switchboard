@@ -44,19 +44,29 @@ impl fmt::Display for KubeStatus {
 }
 
 #[derive(PartialEq, Clone)]
-enum KubeResource {
-    Service(KubeStatus),
-    Deployment(KubeStatus),
-    Pod(KubeStatus),
+struct KubeResource {
+    status: KubeStatus,
+    name: String,
+    display: String,
+}
+
+impl KubeResource {
+    pub fn new(name: String, display: String) -> Self {
+        Self {
+            status: KubeStatus::Loading,
+            name,
+            display,
+        }
+    }
+
+    pub fn is_ready(&self) -> bool {
+        self.status != KubeStatus::Loading
+    }
 }
 
 impl fmt::Display for KubeResource {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            KubeResource::Service(status) => write!(f, "Service: {}", status),
-            KubeResource::Deployment(status) => write!(f, "Deploy: {}", status),
-            KubeResource::Pod(status) => write!(f, "Pods: {}", status),
-        }
+        write!(f, "{}: {}", self.display, self.status)
     }
 }
 
@@ -158,12 +168,7 @@ impl eframe::App for DevSwitchboard {
                         self.resources = self
                             .resources
                             .iter()
-                            .filter(|r| match (r, &new_resource) {
-                                (KubeResource::Service(_), KubeResource::Service(_)) => true,
-                                (KubeResource::Pod(_), KubeResource::Pod(_)) => true,
-                                (KubeResource::Deployment(_), KubeResource::Deployment(_)) => true,
-                                _ => false,
-                            })
+                            .filter(|r| r.name == new_resource.name)
                             .map(|_| new_resource.clone())
                             .collect();
                     }
@@ -180,6 +185,9 @@ impl eframe::App for DevSwitchboard {
                     .labelled_by(ns_label.id)
             });
             ui.horizontal(|ui| {
+                if !self.ready {
+                    ui.add(egui::widgets::Spinner::new());
+                }
                 ui.label("Namespaces:");
                 eframe::egui::ComboBox::new("namespaces", "")
                     .width(200.0)
@@ -205,13 +213,18 @@ impl eframe::App for DevSwitchboard {
                 ui.heading("Skaffold helper tools");
                 if self.ready && ui.button("Check Status").clicked() {
                     self.resources = vec![
-                        KubeResource::Service(KubeStatus::Loading),
-                        KubeResource::Deployment(KubeStatus::Loading),
-                        KubeResource::Pod(KubeStatus::Loading),
+                        KubeResource::new("service".to_owned(), "Services".to_owned()),
+                        KubeResource::new("deployment".to_owned(), "Deploys".to_owned()),
+                        KubeResource::new("pod".to_owned(), "Pods".to_owned()),
                     ];
                 }
                 for resource in self.resources.clone() {
-                    ui.label(format!("{}", resource));
+                    ui.horizontal(|ui| {
+                        if !resource.is_ready() {
+                            ui.add(egui::widgets::Spinner::new());
+                        }
+                        ui.label(format!("{}", resource));
+                    });
                 }
             }
         });
