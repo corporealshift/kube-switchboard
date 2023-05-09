@@ -62,6 +62,15 @@ impl KubeResource {
     pub fn is_ready(&self) -> bool {
         self.status != KubeStatus::Loading
     }
+
+    pub fn color(&self) -> Color32 {
+        match self.status {
+            KubeStatus::Loading => Color32::DARK_GRAY,
+            KubeStatus::Good => Color32::GREEN,
+            KubeStatus::Bad(_) => Color32::RED,
+            KubeStatus::Suspicious(_) => Color32::YELLOW,
+        }
+    }
 }
 
 impl fmt::Display for KubeResource {
@@ -70,7 +79,7 @@ impl fmt::Display for KubeResource {
     }
 }
 
-fn get_namespaces(tx: Sender<KubeMessage>, ctx: egui::Context) {
+fn get_namespaces(tx: Sender<KubeMessage>) {
     tokio::spawn(async move {
         match Client::try_default().await {
             Ok(client) => {
@@ -84,14 +93,13 @@ fn get_namespaces(tx: Sender<KubeMessage>, ctx: egui::Context) {
                 let _ = tx.send(KubeMessage::Namespaces(all));
             }
             Err(err) => {
-                tx.send(KubeMessage::Namespaces(Err(err)));
+                let _ = tx.send(KubeMessage::Namespaces(Err(err)));
             }
         }
-        ctx.request_repaint();
     });
 }
 
-fn check_pods(namespace: String, tx: Sender<KubeMessage>, ctx: egui::Context) {
+fn check_pods(namespace: String, tx: Sender<KubeMessage>) {
     tokio::spawn(async move {
         match Client::try_default().await {
             Ok(client) => {
@@ -108,19 +116,22 @@ fn check_pods(namespace: String, tx: Sender<KubeMessage>, ctx: egui::Context) {
                             //println!("Pod Status: {:#?}", phase.clone().unwrap_or_default());
                             phase
                         })
-                        .filter(|phase| phase != &Some("Running".to_owned()))
+                        .filter(|phase| {
+                            phase != &Some("Running".to_owned())
+                                && phase != &Some("Succeeded".to_owned())
+                        })
                         .count()
                 });
                 match any_bad {
                     Ok(count) => {
                         if count > 0 {
-                            tx.send(KubeMessage::Resource(Ok(KubeResource {
+                            let _ = tx.send(KubeMessage::Resource(Ok(KubeResource {
                                 name: "pod".to_owned(),
                                 display: "Pods".to_owned(),
                                 status: KubeStatus::Bad("One or more not ready".to_owned()),
                             })));
                         } else {
-                            tx.send(KubeMessage::Resource(Ok(KubeResource {
+                            let _ = tx.send(KubeMessage::Resource(Ok(KubeResource {
                                 name: "pod".to_owned(),
                                 display: "Pods".to_owned(),
                                 status: KubeStatus::Good,
@@ -128,12 +139,12 @@ fn check_pods(namespace: String, tx: Sender<KubeMessage>, ctx: egui::Context) {
                         }
                     }
                     Err(err) => {
-                        tx.send(KubeMessage::Resource(Err(err)));
+                        let _ = tx.send(KubeMessage::Resource(Err(err)));
                     }
                 }
             }
             Err(err) => {
-                tx.send(KubeMessage::Resource(Err(err)));
+                let _ = tx.send(KubeMessage::Resource(Err(err)));
             }
         }
     });
@@ -180,9 +191,9 @@ struct DevSwitchboard {
 }
 
 impl DevSwitchboard {
-    fn new(cc: &CreationContext<'_>, namespaces: Vec<String>) -> Self {
+    fn new(_cc: &CreationContext<'_>, namespaces: Vec<String>) -> Self {
         let (sender, receiver) = std::sync::mpsc::channel();
-        get_namespaces(sender.clone(), cc.egui_ctx.clone());
+        get_namespaces(sender.clone());
         Self {
             sender,
             receiver,
@@ -212,8 +223,13 @@ impl eframe::App for DevSwitchboard {
                         self.resources = self
                             .resources
                             .iter()
-                            .filter(|r| r.name == new_resource.name)
-                            .map(|_| new_resource.clone())
+                            .map(|r| {
+                                if r.name == new_resource.name {
+                                    new_resource.clone()
+                                } else {
+                                    r.clone()
+                                }
+                            })
                             .collect();
                     }
                     _ => {}
@@ -261,18 +277,14 @@ impl eframe::App for DevSwitchboard {
                         KubeResource::new("deployment".to_owned(), "Deploys".to_owned()),
                         KubeResource::new("pod".to_owned(), "Pods".to_owned()),
                     ];
-                    check_pods(
-                        self.selected_namespace.clone(),
-                        self.sender.clone(),
-                        ctx.clone(),
-                    );
+                    check_pods(self.selected_namespace.clone(), self.sender.clone());
                 }
                 for resource in self.resources.clone() {
                     ui.horizontal(|ui| {
                         if !resource.is_ready() {
                             ui.add(egui::widgets::Spinner::new());
                         }
-                        ui.label(format!("{}", resource));
+                        ui.colored_label(resource.color(), format!("{}", resource));
                     });
                 }
             }
