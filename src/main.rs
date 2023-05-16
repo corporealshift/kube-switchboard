@@ -1,17 +1,13 @@
 mod kube_res;
 
-use self::kube_res::{pods::check_pods, KubeMessage, KubeResource, KubeStatus};
+use self::kube_res::{
+    namespaces::get_namespaces, pods::check_pods, KubeMessage, KubeResource, KubeStatus,
+};
 
 use eframe::egui;
 use eframe::CreationContext;
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Duration;
-
-use k8s_openapi::api::core::v1::Namespace;
-use kube::{
-    api::{Api, ListParams},
-    Client,
-};
 
 use tokio::runtime::Runtime;
 
@@ -19,26 +15,6 @@ use tokio::runtime::Runtime;
 enum Board {
     Welcome,
     Skaffold,
-}
-
-fn get_namespaces(tx: Sender<KubeMessage>) {
-    tokio::spawn(async move {
-        match Client::try_default().await {
-            Ok(client) => {
-                let namespaces: Api<Namespace> = Api::all(client);
-                let all = namespaces.list(&ListParams::default()).await.map(|list| {
-                    list.iter()
-                        .map(|ns| ns.metadata.name.clone().unwrap_or("".to_owned()))
-                        .collect::<Vec<String>>()
-                });
-
-                let _ = tx.send(KubeMessage::Namespaces(all));
-            }
-            Err(err) => {
-                let _ = tx.send(KubeMessage::Namespaces(Err(err)));
-            }
-        }
-    });
 }
 
 fn main() -> Result<(), eframe::Error> {
