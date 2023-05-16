@@ -1,3 +1,4 @@
+pub mod pods;
 use eframe::egui::Color32;
 use kube::Error;
 use std::fmt;

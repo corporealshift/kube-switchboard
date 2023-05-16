@@ -1,18 +1,16 @@
 mod kube_res;
 
-use self::kube_res::{KubeMessage, KubeResource, KubeStatus};
+use self::kube_res::{pods::check_pods, KubeMessage, KubeResource, KubeStatus};
 
 use eframe::egui;
-use eframe::egui::Color32;
 use eframe::CreationContext;
-use std::fmt;
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Duration;
 
-use k8s_openapi::api::core::v1::{Namespace, Pod};
+use k8s_openapi::api::core::v1::Namespace;
 use kube::{
     api::{Api, ListParams},
-    Client, Error,
+    Client,
 };
 
 use tokio::runtime::Runtime;
@@ -38,57 +36,6 @@ fn get_namespaces(tx: Sender<KubeMessage>) {
             }
             Err(err) => {
                 let _ = tx.send(KubeMessage::Namespaces(Err(err)));
-            }
-        }
-    });
-}
-
-fn check_pods(namespace: String, tx: Sender<KubeMessage>) {
-    tokio::spawn(async move {
-        match Client::try_default().await {
-            Ok(client) => {
-                let pods: Api<Pod> = Api::namespaced(client, namespace.as_str());
-
-                let any_bad = pods.list(&ListParams::default()).await.map(|list| {
-                    println!("got pods list!");
-                    list.iter()
-                        .map(|pod| {
-                            let phase = pod
-                                .status
-                                .clone()
-                                .map(|s| s.phase.unwrap_or("unknown".to_owned()));
-                            //println!("Pod Status: {:#?}", phase.clone().unwrap_or_default());
-                            phase
-                        })
-                        .filter(|phase| {
-                            phase != &Some("Running".to_owned())
-                                && phase != &Some("Succeeded".to_owned())
-                        })
-                        .count()
-                });
-                match any_bad {
-                    Ok(count) => {
-                        if count > 0 {
-                            let _ = tx.send(KubeMessage::Resource(Ok(KubeResource {
-                                name: "pod".to_owned(),
-                                display: "Pods".to_owned(),
-                                status: KubeStatus::Bad("One or more not ready".to_owned()),
-                            })));
-                        } else {
-                            let _ = tx.send(KubeMessage::Resource(Ok(KubeResource {
-                                name: "pod".to_owned(),
-                                display: "Pods".to_owned(),
-                                status: KubeStatus::Good,
-                            })));
-                        }
-                    }
-                    Err(err) => {
-                        let _ = tx.send(KubeMessage::Resource(Err(err)));
-                    }
-                }
-            }
-            Err(err) => {
-                let _ = tx.send(KubeMessage::Resource(Err(err)));
             }
         }
     });
