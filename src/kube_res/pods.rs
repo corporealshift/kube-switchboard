@@ -2,7 +2,7 @@ use crate::{KubeMessage, KubeResource, KubeStatus};
 use k8s_openapi::api::core::v1::Pod;
 use kube::{
     api::{Api, ListParams},
-    Client,
+    {Client, Error},
 };
 use std::sync::mpsc::Sender;
 
@@ -28,27 +28,32 @@ pub fn check_pods(namespace: String, tx: Sender<KubeMessage>) {
                 match any_bad {
                     Ok(count) => {
                         if count > 0 {
-                            let _ = tx.send(KubeMessage::Resource(Ok(KubeResource {
-                                name: "pod".to_owned(),
-                                display: "Pods".to_owned(),
-                                status: KubeStatus::Bad("One or more not ready".to_owned()),
-                            })));
+                            let _ = tx
+                                .send(success(KubeStatus::Bad("One or more not ready".to_owned())));
                         } else {
-                            let _ = tx.send(KubeMessage::Resource(Ok(KubeResource {
-                                name: "pod".to_owned(),
-                                display: "Pods".to_owned(),
-                                status: KubeStatus::Good,
-                            })));
+                            let _ = tx.send(success(KubeStatus::Good));
                         }
                     }
                     Err(err) => {
-                        let _ = tx.send(KubeMessage::Resource(Err(err)));
+                        let _ = tx.send(error(err));
                     }
                 }
             }
             Err(err) => {
-                let _ = tx.send(KubeMessage::Resource(Err(err)));
+                let _ = tx.send(error(err));
             }
         }
     });
+}
+
+fn success(status: KubeStatus) -> KubeMessage {
+    KubeMessage::Resource(Ok(KubeResource {
+        name: "pod".to_owned(),
+        display: "Pods".to_owned(),
+        status,
+    }))
+}
+
+fn error(err: Error) -> KubeMessage {
+    KubeMessage::Resource(Err(err))
 }
