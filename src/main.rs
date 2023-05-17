@@ -1,8 +1,10 @@
 mod kube_res;
-
+mod ui;
 use self::kube_res::{
     namespaces::get_namespaces, pods::check_pods, KubeMessage, KubeResource, KubeStatus,
 };
+
+use self::ui::topbar::topbar;
 
 use eframe::egui;
 use eframe::CreationContext;
@@ -12,7 +14,7 @@ use std::time::Duration;
 use tokio::runtime::Runtime;
 
 #[derive(PartialEq)]
-enum Board {
+pub enum Board {
     Welcome,
     Skaffold,
 }
@@ -105,32 +107,13 @@ impl eframe::App for DevSwitchboard {
             _ => {} // don't care if message does not receive
         }
         egui::TopBottomPanel::top("header").show(ctx, |ui| {
-            ui.heading("Fulcrum Dev Switchboard");
-            ui.horizontal(|ui| {
-                let ns_label = ui.label("Namespace: ");
-                ui.text_edit_singleline(&mut self.selected_namespace)
-                    .labelled_by(ns_label.id)
-            });
-            ui.horizontal(|ui| {
-                if !self.ready {
-                    ui.add(egui::widgets::Spinner::new());
-                }
-                ui.label("Namespaces:");
-                eframe::egui::ComboBox::new("namespaces", "")
-                    .width(200.0)
-                    .selected_text(self.selected_namespace.clone())
-                    .show_ui(ui, |ui| {
-                        for ns in self.namespaces.clone().into_iter() {
-                            let ns_label = ns.clone();
-                            ui.selectable_value(&mut self.selected_namespace, ns, ns_label);
-                        }
-                    })
-            });
-            ui.horizontal(|ui| {
-                ui.label("Select a board:");
-                ui.selectable_value(&mut self.board, Board::Welcome, "Dashboard");
-                ui.selectable_value(&mut self.board, Board::Skaffold, "Skaffold");
-            })
+            topbar(
+                ui,
+                &mut self.selected_namespace,
+                self.ready,
+                self.namespaces.clone(),
+                &mut self.board,
+            )
         });
         egui::CentralPanel::default().show(ctx, |ui| match self.board {
             Board::Welcome => {
