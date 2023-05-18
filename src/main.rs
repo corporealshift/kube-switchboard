@@ -1,14 +1,13 @@
 mod kube_res;
 mod ui;
-use self::kube_res::{
-    namespaces::get_namespaces, pods::check_pods, KubeMessage, KubeResource, KubeStatus,
-};
+use self::kube_res::{namespaces::get_namespaces, KubeMessage, KubeResource, KubeStatus};
 
+use self::ui::boards::{status, welcome};
 use self::ui::topbar::topbar;
 
 use eframe::egui;
 use eframe::CreationContext;
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::Receiver;
 use std::time::Duration;
 
 use tokio::runtime::Runtime;
@@ -16,7 +15,7 @@ use tokio::runtime::Runtime;
 #[derive(PartialEq)]
 pub enum Board {
     Welcome,
-    Skaffold,
+    Status,
 }
 
 fn main() -> Result<(), eframe::Error> {
@@ -50,11 +49,10 @@ fn main() -> Result<(), eframe::Error> {
 }
 
 struct DevSwitchboard {
-    sender: Sender<KubeMessage>,
     receiver: Receiver<KubeMessage>,
     selected_namespace: String,
     namespaces: Vec<String>,
-    resources: Vec<KubeResource>,
+    status_board: status::Board,
     board: Board,
     ready: bool,
 }
@@ -64,11 +62,10 @@ impl DevSwitchboard {
         let (sender, receiver) = std::sync::mpsc::channel();
         get_namespaces(sender.clone());
         Self {
-            sender,
             receiver,
             selected_namespace: "Loading namespaces...".to_owned(),
             namespaces,
-            resources: vec![],
+            status_board: status::Board::new(sender.clone()),
             board: Board::Welcome,
             ready: false,
         }
@@ -89,23 +86,15 @@ impl eframe::App for DevSwitchboard {
                 },
                 KubeMessage::Resource(res) => match res {
                     Ok(new_resource) => {
-                        self.resources = self
-                            .resources
-                            .iter()
-                            .map(|r| {
-                                if r.name == new_resource.name {
-                                    new_resource.clone()
-                                } else {
-                                    r.clone()
-                                }
-                            })
-                            .collect();
+                        self.status_board.receive_resource(new_resource);
                     }
                     _ => {}
                 },
             },
             _ => {} // don't care if message does not receive
         }
+
+        self.status_board.namespace = self.selected_namespace.clone();
         egui::TopBottomPanel::top("header").show(ctx, |ui| {
             topbar(
                 ui,
@@ -116,28 +105,8 @@ impl eframe::App for DevSwitchboard {
             )
         });
         egui::CentralPanel::default().show(ctx, |ui| match self.board {
-            Board::Welcome => {
-                ui.label("Welcome to the Dev switchboard! Pick a board from the buttons above");
-            }
-            Board::Skaffold => {
-                ui.heading("Skaffold helper tools");
-                if self.ready && ui.button("Check Status").clicked() {
-                    self.resources = vec![
-                        KubeResource::new("service".to_owned(), "Services".to_owned()),
-                        KubeResource::new("deployment".to_owned(), "Deploys".to_owned()),
-                        KubeResource::new("pod".to_owned(), "Pods".to_owned()),
-                    ];
-                    check_pods(self.selected_namespace.clone(), self.sender.clone());
-                }
-                for resource in self.resources.clone() {
-                    ui.horizontal(|ui| {
-                        if !resource.is_ready() {
-                            ui.add(egui::widgets::Spinner::new());
-                        }
-                        ui.colored_label(resource.color(), format!("{}", resource));
-                    });
-                }
-            }
+            Board::Welcome => welcome::board(ui),
+            Board::Status => self.status_board.board(ui, self.ready),
         });
     }
 }

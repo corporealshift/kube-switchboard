@@ -12,7 +12,7 @@ pub fn check_pods(namespace: String, tx: Sender<KubeMessage>) {
             Ok(client) => {
                 let pods: Api<Pod> = Api::namespaced(client, namespace.as_str());
                 let any_bad = pods.list(&ListParams::default()).await.map(|list| {
-                    println!("got pods list!");
+                    println!("got pods list! ns: {}", namespace);
                     list.iter()
                         .map(|pod| {
                             pod.status

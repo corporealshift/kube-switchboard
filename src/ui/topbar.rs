@@ -32,6 +32,6 @@ pub fn topbar(
     ui.horizontal(|ui| {
         ui.label("Select a board:");
         ui.selectable_value(board, Board::Welcome, "Dashboard");
-        ui.selectable_value(board, Board::Skaffold, "Kubernetes");
+        ui.selectable_value(board, Board::Status, "Status");
     })
 }
