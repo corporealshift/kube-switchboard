@@ -19,9 +19,9 @@ impl Board {
     }
     fn check(&mut self) {
         self.resources = vec![
-            KubeResource::new("service".to_owned(), "Services".to_owned()),
-            KubeResource::new("deployment".to_owned(), "Deploys".to_owned()),
-            KubeResource::new("pod".to_owned(), "Pods".to_owned()),
+            KubeResource::new("service".to_string(), "Services".to_string()),
+            KubeResource::new("deployment".to_owned(), "Deploys".to_string()),
+            KubeResource::new("pod".to_string(), "Pods".to_string()),
         ];
         check_pods(self.namespace.clone(), self.sender.clone());
     }

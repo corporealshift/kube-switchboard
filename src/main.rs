@@ -42,7 +42,7 @@ fn main() -> Result<(), eframe::Error> {
         Box::new(|cc| {
             Box::new(DevSwitchboard::new(
                 cc,
-                vec!["Loading namespaces...".to_owned()],
+                vec!["Loading namespaces...".to_string()],
             ))
         }),
     )
@@ -63,7 +63,7 @@ impl DevSwitchboard {
         get_namespaces(sender.clone());
         Self {
             receiver,
-            selected_namespace: "Loading namespaces...".to_owned(),
+            selected_namespace: "Loading namespaces...".to_string(),
             namespaces,
             status_board: status::Board::new(sender.clone()),
             board: Board::Welcome,
@@ -79,10 +79,10 @@ impl eframe::App for DevSwitchboard {
                 KubeMessage::Namespaces(res) => match res {
                     Ok(namespaces) => {
                         self.namespaces = namespaces;
-                        self.selected_namespace = "".to_owned();
+                        self.selected_namespace = "".to_string();
                         self.ready = true;
                     }
-                    _ => self.selected_namespace = "Failed - Check login!".to_owned(),
+                    _ => self.selected_namespace = "Failed - Check login!".to_string(),
                 },
                 KubeMessage::Resource(res) => match res {
                     Ok(new_resource) => {
