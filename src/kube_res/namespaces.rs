@@ -13,7 +13,7 @@ pub fn get_namespaces(tx: Sender<KubeMessage>) {
                 let namespaces: Api<Namespace> = Api::all(client);
                 let all = namespaces.list(&ListParams::default()).await.map(|list| {
                     list.iter()
-                        .map(|ns| ns.metadata.name.clone().unwrap_or("".to_string()))
+                        .map(|ns| ns.metadata.name.clone().unwrap_or("".to_owned()))
                         .collect::<Vec<String>>()
                 });
                 let _ = tx.send(KubeMessage::Namespaces(all));
