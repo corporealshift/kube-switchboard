@@ -42,7 +42,7 @@ fn main() -> Result<(), eframe::Error> {
         Box::new(|cc| {
             Box::new(DevSwitchboard::new(
                 cc,
-                vec!["Loading namespaces...".to_owned()],
+                vec!["Loading namespaces...".into()],
             ))
         }),
     )
