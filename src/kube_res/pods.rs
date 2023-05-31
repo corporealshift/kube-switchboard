@@ -165,14 +165,18 @@ mod test {
             let pods = ObjectList {
                 metadata: Default::default(),
                 items: vec![
-                    pod(Some("Running".to_owned())),
+                    pod(Some("Runing".to_owned())),
                     pod(Some("Succeeded".to_owned())),
                     pod(Some("Pending".to_owned())),
                     pod(Some("Failed".to_owned())),
                 ],
             };
 
-            assert_eq!(only_bad_pods(&pods).iter().count(), 2);
+            assert_eq!(
+                only_bad_pods(&pods).iter().count(),
+                2,
+                "Number of bad pods was not correct"
+            );
         }
 
         #[test]
