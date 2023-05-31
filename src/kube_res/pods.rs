@@ -8,7 +8,7 @@ use std::sync::mpsc::Sender;
 
 pub fn check_pods(namespace: String, tx: Sender<KubeMessage>) {
     tokio::spawn(async move {
-        match Client::try_default().await {
+        let msg = match Client::try_default().await {
             Ok(client) => {
                 let pods_request: Api<Pod> = Api::namespaced(client, namespace.as_str());
                 let all_pods = pods_request.list(&ListParams::default()).await;
@@ -20,28 +20,30 @@ pub fn check_pods(namespace: String, tx: Sender<KubeMessage>) {
                         only_bad_pods(&list).collect::<Vec<Option<Pod>>>(),
                     )
                 });
-                match pods {
-                    Ok((all_pods, bad_pods)) => {
-                        if bad_pods.iter().count() > 0 {
-                            let _ = tx
-                                .send(success(KubeStatus::Bad("One or more not ready".to_owned())));
-                        } else if all_pods.iter().count() < 1 {
-                            let _ = tx
-                                .send(success(KubeStatus::Suspicious("No pods found".to_owned())));
-                        } else {
-                            let _ = tx.send(success(KubeStatus::Good));
-                        }
-                    }
-                    Err(err) => {
-                        let _ = tx.send(error(err));
-                    }
-                }
+                pods_message(pods)
             }
-            Err(err) => {
-                let _ = tx.send(error(err));
+            Err(err) => error(err),
+        };
+        match tx.send(msg) {
+            Ok(_) => {}
+            Err(e) => println!("Failed sending message about pods: {}", e),
+        };
+    });
+}
+
+fn pods_message(pods: Result<(Vec<Pod>, Vec<Option<Pod>>), Error>) -> KubeMessage {
+    match pods {
+        Ok((all_pods, bad_pods)) => {
+            if bad_pods.iter().count() > 0 {
+                success(KubeStatus::Bad("One or more not ready".to_owned()))
+            } else if all_pods.iter().count() < 1 {
+                success(KubeStatus::Suspicious("No pods found".to_owned()))
+            } else {
+                success(KubeStatus::Good)
             }
         }
-    });
+        Err(err) => error(err),
+    }
 }
 
 fn only_bad_pods(list: &ObjectList<Pod>) -> impl Iterator<Item = Option<Pod>> + '_ {
@@ -80,33 +82,109 @@ fn error(err: Error) -> KubeMessage {
 }
 
 #[cfg(test)]
-mod tests {
+mod test {
     use super::*;
+
     use k8s_openapi::api::core::v1::{Pod, PodStatus};
     use kube::api::ObjectList;
+    use std::io::Error as IOError;
+    use std::io::ErrorKind;
 
-    #[test]
-    pub fn good_pods_are_ignored() {
-        let pods = ObjectList {
-            metadata: Default::default(),
-            items: vec![
-                pod(Some("Running".to_owned())),
-                pod(Some("Succeeded".to_owned())),
-                pod(Some("Pending".to_owned())),
-                pod(Some("Failed".to_owned())),
-            ],
-        };
+    #[cfg(test)]
+    mod pods_message {
+        use super::*;
+        #[test]
+        pub fn is_bad_when_any_bad_pods() {
+            let pods = Ok((
+                vec![pod(Some("Running".to_owned()))],
+                vec![Some(pod(Some("Bad".to_owned())))],
+            ));
+            let msg = pods_message(pods);
 
-        assert_eq!(only_bad_pods(&pods).count(), 2);
+            match msg {
+                KubeMessage::Resource(Ok(res)) => {
+                    assert_eq!(
+                        res.status,
+                        KubeStatus::Bad("One or more not ready".to_owned())
+                    );
+                }
+                _ => panic!("bad pods should result in a Bad message"),
+            }
+        }
+
+        #[test]
+        pub fn is_sus_when_no_pods() {
+            let pods = Ok((vec![], vec![]));
+            let msg = pods_message(pods);
+
+            match msg {
+                KubeMessage::Resource(Ok(res)) => {
+                    assert_eq!(
+                        res.status,
+                        KubeStatus::Suspicious("No pods found".to_owned())
+                    );
+                }
+                _ => panic!("No pods should result in Suspicious message"),
+            }
+        }
+
+        #[test]
+        pub fn is_good_when_no_bad_pods() {
+            let pods = Ok((vec![pod(Some("Running".to_owned()))], vec![]));
+            let msg = pods_message(pods);
+
+            match msg {
+                KubeMessage::Resource(Ok(res)) => {
+                    assert_eq!(res.status, KubeStatus::Good);
+                }
+                _ => panic!("Only good pods should result in Good message"),
+            }
+        }
+
+        #[test]
+        pub fn is_error_when_error() {
+            let io_error = IOError::new(ErrorKind::NotFound, "borked");
+            let pods = Err(Error::ReadEvents(io_error));
+            let msg = pods_message(pods);
+
+            match msg {
+                KubeMessage::Resource(Err(err)) => {
+                    assert_eq!(
+                        err.to_string(),
+                        "Error reading events stream: borked".to_owned()
+                    );
+                }
+                _ => panic!("Error should report an error message"),
+            }
+        }
     }
 
-    #[test]
-    fn pods_with_no_status_are_bad() {
-        let pods = ObjectList {
-            metadata: Default::default(),
-            items: vec![pod(Some("Running".to_owned())), pod(None)],
-        };
-        assert_eq!(only_bad_pods(&pods).count(), 1);
+    #[cfg(test)]
+    mod only_bad_pods {
+        use super::*;
+        #[test]
+        pub fn good_pods_are_ignored() {
+            let pods = ObjectList {
+                metadata: Default::default(),
+                items: vec![
+                    pod(Some("Running".to_owned())),
+                    pod(Some("Succeeded".to_owned())),
+                    pod(Some("Pending".to_owned())),
+                    pod(Some("Failed".to_owned())),
+                ],
+            };
+
+            assert_eq!(only_bad_pods(&pods).count(), 2);
+        }
+
+        #[test]
+        fn pods_with_no_status_are_bad() {
+            let pods = ObjectList {
+                metadata: Default::default(),
+                items: vec![pod(Some("Running".to_owned())), pod(None)],
+            };
+            assert_eq!(only_bad_pods(&pods).count(), 1);
+        }
     }
 
     fn pod(phase: Option<String>) -> Pod {

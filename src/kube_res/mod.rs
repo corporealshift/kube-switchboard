@@ -4,7 +4,7 @@ use eframe::egui::Color32;
 use kube::Error;
 use std::fmt;
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum KubeStatus {
     Loading,
     Good,
