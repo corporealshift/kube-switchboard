@@ -15,10 +15,7 @@ pub fn check_pods(namespace: String, tx: Sender<KubeMessage>) {
                 let pods = all_pods.map(|list| {
                     let all_pods_vec: Vec<Pod> = list.iter().map(|p| p.clone()).collect();
                     println!("got pods list! ns: {}", namespace);
-                    (
-                        all_pods_vec,
-                        only_bad_pods(&list).collect::<Vec<Option<Pod>>>(),
-                    )
+                    (all_pods_vec, only_bad_pods(&list))
                 });
                 pods_message(pods)
             }
@@ -46,7 +43,7 @@ fn pods_message(pods: Result<(Vec<Pod>, Vec<Option<Pod>>), Error>) -> KubeMessag
     }
 }
 
-fn only_bad_pods(list: &ObjectList<Pod>) -> impl Iterator<Item = Option<Pod>> + '_ {
+fn only_bad_pods(list: &ObjectList<Pod>) -> Vec<Option<Pod>> {
     list.iter()
         .map(|pod| {
             pod.status
@@ -67,6 +64,7 @@ fn only_bad_pods(list: &ObjectList<Pod>) -> impl Iterator<Item = Option<Pod>> + 
                 None
             }
         })
+        .collect::<Vec<Option<Pod>>>()
 }
 
 fn success(status: KubeStatus) -> KubeMessage {
@@ -174,7 +172,20 @@ mod test {
                 ],
             };
 
-            assert_eq!(only_bad_pods(&pods).count(), 2);
+            assert_eq!(only_bad_pods(&pods).iter().count(), 2);
+        }
+
+        #[test]
+        pub fn only_good_pods_results_in_empty_list() {
+            let pods = ObjectList {
+                metadata: Default::default(),
+                items: vec![
+                    pod(Some("Running".to_owned())),
+                    pod(Some("Succeeded".to_owned())),
+                ],
+            };
+
+            assert_eq!(only_bad_pods(&pods).iter().count(), 0);
         }
 
         #[test]
@@ -183,7 +194,7 @@ mod test {
                 metadata: Default::default(),
                 items: vec![pod(Some("Running".to_owned())), pod(None)],
             };
-            assert_eq!(only_bad_pods(&pods).count(), 1);
+            assert_eq!(only_bad_pods(&pods).iter().count(), 1);
         }
     }
 
