@@ -165,7 +165,7 @@ mod test {
             let pods = ObjectList {
                 metadata: Default::default(),
                 items: vec![
-                    pod(Some("Runing".to_owned())),
+                    pod(Some("Running".to_owned())),
                     pod(Some("Succeeded".to_owned())),
                     pod(Some("Pending".to_owned())),
                     pod(Some("Failed".to_owned())),
