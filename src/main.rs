@@ -1,5 +1,9 @@
 mod kube_res;
 mod ui;
+
+mod config;
+
+use self::config::Config;
 use self::kube_res::{namespaces::get_namespaces, KubeMessage, KubeResource, KubeStatus};
 
 use self::ui::boards::{status, welcome};
@@ -36,6 +40,8 @@ fn main() -> Result<(), eframe::Error> {
         })
     });
 
+    let conf: Config = config::load().expect("Unable to load config file");
+
     eframe::run_native(
         "Dev Switchboard",
         options,
@@ -43,12 +49,14 @@ fn main() -> Result<(), eframe::Error> {
             Box::new(DevSwitchboard::new(
                 cc,
                 vec!["Loading namespaces...".into()],
+                conf,
             ))
         }),
     )
 }
 
 struct DevSwitchboard {
+    conf: Config,
     receiver: Receiver<KubeMessage>,
     selected_namespace: String,
     namespaces: Vec<String>,
@@ -58,10 +66,11 @@ struct DevSwitchboard {
 }
 
 impl DevSwitchboard {
-    fn new(_cc: &CreationContext<'_>, namespaces: Vec<String>) -> Self {
+    fn new(_cc: &CreationContext<'_>, namespaces: Vec<String>, conf: Config) -> Self {
         let (sender, receiver) = std::sync::mpsc::channel();
         get_namespaces(sender.clone());
         Self {
+            conf,
             receiver,
             selected_namespace: "Loading namespaces...".to_owned(),
             namespaces,
@@ -106,7 +115,12 @@ impl eframe::App for DevSwitchboard {
         });
         egui::CentralPanel::default().show(ctx, |ui| match self.board {
             Board::Welcome => welcome::board(ui),
-            Board::Status => self.status_board.board(ui, self.ready),
+            Board::Status => self.status_board.board(
+                ui,
+                self.ready,
+                self.conf.kube_services(),
+                self.conf.kube_deployments(),
+            ),
         });
     }
 }

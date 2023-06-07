@@ -1,4 +1,4 @@
-use crate::kube_res::pods::check_pods;
+use crate::kube_res::{pods::check_pods, services::check_services};
 use crate::{KubeMessage, KubeResource};
 use eframe::egui;
 use std::sync::mpsc::Sender;
@@ -17,18 +17,25 @@ impl Board {
             namespace: "".to_owned(),
         }
     }
-    fn check(&mut self) {
+    fn check(&mut self, expected_services: Vec<String>, expected_deploys: Vec<String>) {
         self.resources = vec![
             KubeResource::new("service".to_owned(), "Services".to_owned()),
             KubeResource::new("deployment".to_owned(), "Deploys".to_owned()),
             KubeResource::new("pod".to_owned(), "Pods".to_owned()),
         ];
         check_pods(self.namespace.clone(), self.sender.clone());
+        check_services(expected_services, self.sender.clone());
     }
-    pub fn board(&mut self, ui: &mut egui::Ui, ready: bool) {
+    pub fn board(
+        &mut self,
+        ui: &mut egui::Ui,
+        ready: bool,
+        services: Vec<String>,
+        deployments: Vec<String>,
+    ) {
         ui.heading("Status of various resources");
         if ready && ui.button("Check Status").clicked() {
-            self.check();
+            self.check(services, deployments);
         }
         for resource in self.resources.clone() {
             ui.horizontal(|ui| {

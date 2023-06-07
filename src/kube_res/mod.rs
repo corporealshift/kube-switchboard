@@ -1,5 +1,6 @@
 pub mod namespaces;
 pub mod pods;
+pub mod services;
 use eframe::egui::Color32;
 use kube::Error;
 use std::fmt;
