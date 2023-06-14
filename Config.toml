@@ -1,0 +1,4 @@
+[kubernetes]
+[kubernetes.expected]
+services = []
+deployments = []
