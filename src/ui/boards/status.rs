@@ -24,7 +24,11 @@ impl Board {
             KubeResource::new("pod".to_owned(), "Pods".to_owned()),
         ];
         check_pods(self.namespace.clone(), self.sender.clone());
-        check_services(expected_services, self.sender.clone());
+        check_services(
+            self.namespace.clone(),
+            expected_services,
+            self.sender.clone(),
+        );
     }
     pub fn board(
         &mut self,
