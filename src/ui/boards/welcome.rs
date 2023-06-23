@@ -1,5 +1,6 @@
 use eframe::egui;
 use serde::Deserialize;
+use std::collections::HashMap;
 
 #[derive(Deserialize, Clone)]
 pub struct Link {
@@ -14,7 +15,13 @@ pub struct Action {
     action: String,
 }
 
-pub fn board(ui: &mut egui::Ui, namespace: String, links: Vec<Link>, actions: Vec<Action>) {
+pub fn board(
+    ui: &mut egui::Ui,
+    namespace: String,
+    links: Vec<Link>,
+    actions: Vec<Action>,
+    action_results: HashMap<String, String>,
+) {
     if links.len() < 1 && actions.len() < 1 {
         ui.label("Welcome to the Dev Switchboard! Pick a board from the buttons above");
     } else {
@@ -33,6 +40,13 @@ pub fn board(ui: &mut egui::Ui, namespace: String, links: Vec<Link>, actions: Ve
                     "Taking an action! {}, for res: {}",
                     action.action, action.resource
                 );
+            }
+            let res = action_results.get(&action.name);
+            match res {
+                Some(r) => {
+                    ui.label(format!("Results: {}", r));
+                }
+                _ => {}
             }
         });
     }

@@ -11,6 +11,7 @@ use self::ui::topbar::topbar;
 
 use eframe::egui;
 use eframe::CreationContext;
+use std::collections::HashMap;
 use std::sync::mpsc::Receiver;
 use std::time::Duration;
 
@@ -63,6 +64,7 @@ struct DevSwitchboard {
     status_board: status::Board,
     board: Board,
     ready: bool,
+    action_results: HashMap<String, String>,
 }
 
 impl DevSwitchboard {
@@ -77,6 +79,7 @@ impl DevSwitchboard {
             status_board: status::Board::new(sender.clone()),
             board: Board::Welcome,
             ready: false,
+            action_results: HashMap::new(),
         }
     }
 }
@@ -96,6 +99,13 @@ impl eframe::App for DevSwitchboard {
                 KubeMessage::Resource(res) => match res {
                     Ok(new_resource) => {
                         self.status_board.receive_resource(new_resource);
+                    }
+                    _ => {}
+                },
+                KubeMessage::Action(res) => match res {
+                    Ok(action_res) => {
+                        self.action_results
+                            .insert(action_res.name, action_res.results);
                     }
                     _ => {}
                 },
@@ -119,6 +129,7 @@ impl eframe::App for DevSwitchboard {
                 self.selected_namespace.clone(),
                 self.conf.links(),
                 self.conf.actions(),
+                self.action_results.clone(),
             ),
             Board::Status => self.status_board.board(
                 ui,

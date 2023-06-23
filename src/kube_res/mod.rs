@@ -24,6 +24,11 @@ impl fmt::Display for KubeStatus {
     }
 }
 
+pub struct ActionResult {
+    pub name: String,
+    pub results: String,
+}
+
 #[derive(PartialEq, Clone)]
 pub struct KubeResource {
     pub status: KubeStatus,
@@ -63,4 +68,5 @@ impl fmt::Display for KubeResource {
 pub enum KubeMessage {
     Namespaces(Result<Vec<String>, Error>),
     Resource(Result<KubeResource, Error>),
+    Action(Result<ActionResult, Error>),
 }
