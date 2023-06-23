@@ -114,7 +114,12 @@ impl eframe::App for DevSwitchboard {
             )
         });
         egui::CentralPanel::default().show(ctx, |ui| match self.board {
-            Board::Welcome => welcome::board(ui),
+            Board::Welcome => welcome::board(
+                ui,
+                self.selected_namespace.clone(),
+                self.conf.links(),
+                self.conf.actions(),
+            ),
             Board::Status => self.status_board.board(
                 ui,
                 self.ready,
