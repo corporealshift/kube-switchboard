@@ -1,3 +1,4 @@
+pub mod actions;
 pub mod namespaces;
 pub mod pods;
 pub mod services;

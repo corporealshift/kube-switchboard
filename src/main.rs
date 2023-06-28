@@ -62,9 +62,9 @@ struct DevSwitchboard {
     selected_namespace: String,
     namespaces: Vec<String>,
     status_board: status::Board,
+    welcome_board: welcome::Board,
     board: Board,
     ready: bool,
-    action_results: HashMap<String, String>,
 }
 
 impl DevSwitchboard {
@@ -77,9 +77,9 @@ impl DevSwitchboard {
             selected_namespace: "Loading namespaces...".to_owned(),
             namespaces,
             status_board: status::Board::new(sender.clone()),
+            welcome_board: welcome::Board::new(sender.clone()),
             board: Board::Welcome,
             ready: false,
-            action_results: HashMap::new(),
         }
     }
 }
@@ -104,8 +104,8 @@ impl eframe::App for DevSwitchboard {
                 },
                 KubeMessage::Action(res) => match res {
                     Ok(action_res) => {
-                        self.action_results
-                            .insert(action_res.name, action_res.results);
+                        self.welcome_board
+                            .receive_action_result(action_res.name, action_res.results);
                     }
                     _ => {}
                 },
@@ -114,6 +114,8 @@ impl eframe::App for DevSwitchboard {
         }
 
         self.status_board.namespace = self.selected_namespace.clone();
+        self.welcome_board.namespace = self.selected_namespace.clone();
+
         egui::TopBottomPanel::top("header").show(ctx, |ui| {
             topbar(
                 ui,
@@ -124,13 +126,9 @@ impl eframe::App for DevSwitchboard {
             )
         });
         egui::CentralPanel::default().show(ctx, |ui| match self.board {
-            Board::Welcome => welcome::board(
-                ui,
-                self.selected_namespace.clone(),
-                self.conf.links(),
-                self.conf.actions(),
-                self.action_results.clone(),
-            ),
+            Board::Welcome => self
+                .welcome_board
+                .board(ui, self.conf.links(), self.conf.actions()),
             Board::Status => self.status_board.board(
                 ui,
                 self.ready,
