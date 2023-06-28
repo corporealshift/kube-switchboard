@@ -1,4 +1,11 @@
 [kubernetes]
 [kubernetes.expected]
-services = []
-deployments = []
+services = [ "my-service", "my-other-service" ]
+deployments = [ "my-app", "my-other-app" ]
+[switchboard]
+links = [
+  {url = "https://{namespace}.some.team", name="App"},
+]
+actions = [
+  {action = "get-secret", resource="some-secret", name="Secrets!"},
+]
