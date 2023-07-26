@@ -4,6 +4,7 @@ use figment::{
     Error, Figment,
 };
 use serde::Deserialize;
+use std::env;
 
 #[derive(Deserialize)]
 struct Expected {
@@ -47,8 +48,16 @@ impl Config {
 }
 
 pub fn load() -> Result<Config, Error> {
-    Figment::new()
-        .merge(Toml::file("Config.toml"))
-        .merge(Env::prefixed("DEVSWB_"))
-        .extract()
+    match env::home_dir() {
+        Some(path) => {
+            let mut config_path = path.clone();
+            config_path.push(".kube_swb/Config.toml");
+            let file = Toml::file(config_path.as_path());
+            Figment::new()
+                .merge(file)
+                .merge(Env::prefixed("KUBESWB_"))
+                .extract()
+        }
+        None => Figment::new().merge(Env::prefixed("KUBESWB_")).extract(),
+    }
 }

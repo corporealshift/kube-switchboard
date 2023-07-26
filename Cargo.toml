@@ -1,7 +1,11 @@
 [package]
-name = "dev-switchboard"
+name = "kube-switchboard"
 version = "0.1.0"
 edition = "2021"
+
+[[bin]]
+name="release"
+path="utils/release.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

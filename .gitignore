@@ -1,1 +1,8 @@
+.DS_Store
+
+# Final Binaries
+kube-switchboard
+kube-switchboard.dmg
+
+# Built executables
 /target

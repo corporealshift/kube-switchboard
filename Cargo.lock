@@ -735,19 +735,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dev-switchboard"
-version = "0.1.0"
-dependencies = [
- "eframe",
- "env_logger",
- "figment",
- "k8s-openapi",
- "kube",
- "serde",
- "tokio",
-]
-
-[[package]]
 name = "digest"
 version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1710,6 +1697,19 @@ dependencies = [
  "tokio",
  "tokio-util",
  "tracing",
+]
+
+[[package]]
+name = "kube-switchboard"
+version = "0.1.0"
+dependencies = [
+ "eframe",
+ "env_logger",
+ "figment",
+ "k8s-openapi",
+ "kube",
+ "serde",
+ "tokio",
 ]
 
 [[package]]

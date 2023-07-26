@@ -44,7 +44,7 @@ fn main() -> Result<(), eframe::Error> {
     let conf: Config = config::load().expect("Unable to load config file");
 
     eframe::run_native(
-        "Dev Switchboard",
+        "Kube Switchboard",
         options,
         Box::new(|cc| {
             Box::new(DevSwitchboard::new(

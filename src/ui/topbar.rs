@@ -9,7 +9,7 @@ pub fn topbar(
     namespaces: Vec<String>,
     board: &mut Board,
 ) -> InnerResponse<()> {
-    ui.heading("Fulcrum Dev Switchboard");
+    ui.heading("Kubernetes Switchboard");
     ui.horizontal(|ui| {
         let ns_label = ui.label("Namespace: ");
         ui.text_edit_singleline(namespace).labelled_by(ns_label.id)
