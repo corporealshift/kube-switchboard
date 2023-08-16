@@ -1,6 +1,11 @@
 # Kube Switchboard
 A graphical switchboard for viewing/interacting with kubernetes resources. Kind of like K9s, but worse.
 
+## Installation
+Run the `.dmg` file from the releases tab. And copy the app to your `Applications` directory. Make sure
+your default kubernetes profile is configured correctly. Create a `Config.toml` file in
+`~/.kube_swb/`. See the config section below for what to put in it.
+
 ## Config
 This tool is (somewhat) configurable. There is a `Config.toml` file included which you can modify
 to do what you want. Below are the options for your Config file:

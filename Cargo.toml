@@ -2,6 +2,7 @@
 name = "kube-switchboard"
 version = "0.1.0"
 edition = "2021"
+default-run = "kube-switchboard"
 
 [[bin]]
 name="release"
@@ -13,7 +14,7 @@ path="utils/release.rs"
 eframe = "0.21.3"
 env_logger = "0.10"
 figment = { version = "0.10", features = ["toml", "env"] }
-kube = { version = "0.82.2", features = ["runtime", "derive"] }
-k8s-openapi = { version = "0.18.0", features = ["v1_23"] }
+kube = { version = "0.85", features = ["runtime", "derive"] }
+k8s-openapi = { version = "0.19.0", features = ["v1_27"] }
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["net", "rt-multi-thread"] }
