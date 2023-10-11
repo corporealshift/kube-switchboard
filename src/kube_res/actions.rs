@@ -45,8 +45,7 @@ async fn run_valid_action(
                     }
                     None => success(action.name, format!("Nothing found!")),
                 },
-
-                Err(err) => error(err),
+                Err(err) => error(action.name, err),
             })
         }
         _ => None,
@@ -62,8 +61,13 @@ async fn run_valid_action(
     };
 }
 
-fn error(err: Error) -> KubeMessage {
-    KubeMessage::Resource(Err(err))
+// For errors we still return an `Ok` so that we can send messages
+// per individual action
+fn error(action_name: String, err: Error) -> KubeMessage {
+    KubeMessage::Action(Ok(ActionResult {
+        name: action_name,
+        results: format!("Failed to run action: {}", err),
+    }))
 }
 
 fn success(action_name: String, results: String) -> KubeMessage {
