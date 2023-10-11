@@ -219,6 +219,7 @@ mod test {
                 pod_ips: None,
                 qos_class: None,
                 reason: None,
+                resize: None,
                 start_time: None,
             }),
         }
