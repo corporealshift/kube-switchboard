@@ -30,15 +30,9 @@ impl Board {
             self.sender.clone(),
         );
     }
-    pub fn board(
-        &mut self,
-        ui: &mut egui::Ui,
-        ready: bool,
-        services: Vec<String>,
-        deployments: Vec<String>,
-    ) {
+    pub fn board(&mut self, ui: &mut egui::Ui, services: Vec<String>, deployments: Vec<String>) {
         ui.heading("Status of various resources");
-        if ready && ui.button("Check Status").clicked() {
+        if ui.button("Check Status").clicked() {
             self.check(services, deployments);
         }
         for resource in self.resources.clone() {

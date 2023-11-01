@@ -7,11 +7,10 @@ use self::config::Config;
 use self::kube_res::{namespaces::get_namespaces, KubeMessage, KubeResource, KubeStatus};
 
 use self::ui::boards::{status, welcome};
-use self::ui::topbar::topbar;
+use self::ui::topbar::Topbar;
 
 use eframe::egui;
 use eframe::CreationContext;
-use std::collections::HashMap;
 use std::sync::mpsc::Receiver;
 use std::time::Duration;
 
@@ -60,11 +59,11 @@ struct DevSwitchboard {
     conf: Config,
     receiver: Receiver<KubeMessage>,
     selected_namespace: String,
+    topbar: Topbar,
     namespaces: Vec<String>,
     status_board: status::Board,
     welcome_board: welcome::Board,
     board: Board,
-    ready: bool,
 }
 
 impl DevSwitchboard {
@@ -74,12 +73,12 @@ impl DevSwitchboard {
         Self {
             conf,
             receiver,
-            selected_namespace: "Loading namespaces...".to_owned(),
+            selected_namespace: "".to_owned(),
+            topbar: Topbar::new(namespaces.clone(), sender.clone()),
             namespaces,
             status_board: status::Board::new(sender.clone()),
             welcome_board: welcome::Board::new(sender.clone()),
             board: Board::Welcome,
-            ready: false,
         }
     }
 }
@@ -90,9 +89,9 @@ impl eframe::App for DevSwitchboard {
             Ok(message) => match message {
                 KubeMessage::Namespaces(res) => match res {
                     Ok(namespaces) => {
-                        self.namespaces = namespaces;
+                        self.namespaces = namespaces.clone();
+                        self.topbar.receive_namespaces(namespaces);
                         self.selected_namespace = "".to_owned();
-                        self.ready = true;
                     }
                     _ => self.selected_namespace = "Failed - Check login!".to_owned(),
                 },
@@ -117,24 +116,17 @@ impl eframe::App for DevSwitchboard {
         self.welcome_board.namespace = self.selected_namespace.clone();
 
         egui::TopBottomPanel::top("header").show(ctx, |ui| {
-            topbar(
-                ui,
-                &mut self.selected_namespace,
-                self.ready,
-                self.namespaces.clone(),
-                &mut self.board,
-            )
+            self.topbar
+                .display(ui, &mut self.selected_namespace, &mut self.board)
         });
         egui::CentralPanel::default().show(ctx, |ui| match self.board {
             Board::Welcome => self
                 .welcome_board
                 .board(ui, self.conf.links(), self.conf.actions()),
-            Board::Status => self.status_board.board(
-                ui,
-                self.ready,
-                self.conf.kube_services(),
-                self.conf.kube_deployments(),
-            ),
+            Board::Status => {
+                self.status_board
+                    .board(ui, self.conf.kube_services(), self.conf.kube_deployments())
+            }
         });
     }
 }
